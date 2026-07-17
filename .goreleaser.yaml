@@ -1,0 +1,41 @@
+version: 2
+
+project_name: claudectl
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: claudectl
+    main: .
+    binary: claudectl
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+    goarch:
+      - arm64
+      - amd64
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.Commit}}
+
+archives:
+  - id: claudectl
+    formats:
+      - tar.gz
+    name_template: >-
+      {{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}
+
+checksum:
+  name_template: "checksums.txt"
+
+release:
+  github:
+    owner: salisburygeneral
+    name: claudectl
+
+changelog:
+  use: github
