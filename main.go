@@ -17,6 +17,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"syscall"
+	"unsafe"
 )
 
 // Injected at build time via -ldflags.
@@ -132,15 +133,20 @@ Any arguments after "--" are passed through to `+"`claude`"+` inside the contain
 		return 1
 	}
 
-	// Build the container invocation.
-	args := []string{
-		"run", "--rm", "-it",
+	// Build the container invocation. Only allocate a TTY when stdin actually is
+	// one — `container run -t` fails with ENODEV when stdin is a pipe, and
+	// scripted callers (claude -p, wrappers) run without a terminal.
+	args := []string{"run", "--rm", "-i"}
+	if isTerminal(os.Stdin) {
+		args = append(args, "-t")
+	}
+	args = append(args,
 		"-v", absDir + ":/workspace",
 		"-v", tmpDir + ":/home/claude/.claude",
 		"-w", "/workspace",
 		image,
 		"claude", "--dangerously-skip-permissions",
-	}
+	)
 	args = append(args, fs.Args()...)
 
 	cmd := exec.Command("container", args...)
@@ -207,6 +213,16 @@ func readCredentials() ([]byte, error) {
 		return nil, fmt.Errorf("Keychain credentials are missing claudeAiOauth.accessToken")
 	}
 	return payload, nil
+}
+
+// isTerminal reports whether f is an actual terminal. A ModeCharDevice check is
+// not enough: /dev/null is a char device too, and `container run -t` fails with
+// ENODEV when stdin isn't a real TTY.
+func isTerminal(f *os.File) bool {
+	var termios syscall.Termios
+	_, _, errno := syscall.Syscall(syscall.SYS_IOCTL, f.Fd(),
+		syscall.TIOCGETA, uintptr(unsafe.Pointer(&termios)))
+	return errno == 0
 }
 
 func trimTrailingNewline(b []byte) []byte {
