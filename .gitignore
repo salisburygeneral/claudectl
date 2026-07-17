@@ -1,0 +1,10 @@
+# Build output
+/claudectl
+/dist/
+
+# Go
+*.test
+*.out
+
+# macOS
+.DS_Store
